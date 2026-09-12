@@ -7,4 +7,3 @@ dbt/target
 dbt/logs/
 dbt/dbt_packages/
 *.duckdb
-EOF
