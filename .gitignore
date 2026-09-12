@@ -7,3 +7,5 @@ dbt/target
 dbt/logs/
 dbt/dbt_packages/
 *.duckdb
+IMPLEMENTATION_GUIDE.md
+PROJECT_SPEC.md
