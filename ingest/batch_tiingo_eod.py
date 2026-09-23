@@ -8,6 +8,10 @@ from pyspark.sql.types import (
 
 TIINGO_TOKEN = dbutils.secrets.get("beacon", "tiingo_token")
 TABLE = "beacon.bronze.markets_raw"
+# Tiingo's /prices endpoint returns only the single latest day when startDate is
+# omitted — so first-time pulls (no watermark yet) must pass an explicit far-past
+# date to get full history, not just "today".
+BACKFILL_START = "1990-01-01"
 
 # Broad-market ETF watchlist: index + sector coverage to pair against macro indicators.
 WATCHLIST = {
@@ -59,7 +63,7 @@ def fetch(symbol: str, start: str | None):
 
 def run():
     have = latest_dates()
-    rows = [row for s in WATCHLIST for row in fetch(s, have.get(s))]
+    rows = [row for s in WATCHLIST for row in fetch(s, have.get(s, BACKFILL_START))]
     if not rows:
         print("No new bars.")
         return
