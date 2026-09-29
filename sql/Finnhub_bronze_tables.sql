@@ -1,6 +1,6 @@
 -- Bronze table DDL for the Finnhub streaming pipeline
 -- (ingest/stream_finnhub_consumer.py -> landing volume -> ingest/stream_finnhub_autoloader.py).
--- Not created yet — review before running.
+-- Created in the DEFAULT workspace; kept here as the reference definition.
 
 CREATE TABLE IF NOT EXISTS beacon.bronze.quotes_raw (
     symbol        STRING    COMMENT 'Ticker symbol',

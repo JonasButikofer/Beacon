@@ -8,14 +8,28 @@
 #
 # Requires the `websocket-client` package (not preinstalled on serverless —
 # add it via %pip install websocket-client or the job's environment deps).
+#
+# Optional args for bounded test runs (defaults = always-on production behavior):
+#   --max-runtime-seconds N   stop cleanly after N seconds (0 = run forever)
+#   --symbols A,B             override the watchlist, e.g. BINANCE:BTCUSDT to get
+#                             trades outside US market hours (crypto trades 24/7)
+import argparse
 import json
+import threading
 import time
 
 import websocket
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--max-runtime-seconds", type=int, default=0)
+parser.add_argument("--symbols", default="")
+args, _ = parser.parse_known_args()  # tolerate notebook-kernel argv
+
 FINNHUB_TOKEN = dbutils.secrets.get("beacon", "finnhub_token")
 LANDING_PATH = "/Volumes/beacon/bronze/quote_landing"
 WATCHLIST = ["SPY", "QQQ", "DIA", "IWM", "XLF", "XLE", "XLK", "XLU", "TLT"]
+if args.symbols:
+    WATCHLIST = [s.strip() for s in args.symbols.split(",") if s.strip()]
 
 FLUSH_INTERVAL_SECONDS = 30
 FLUSH_MAX_MESSAGES = 500
@@ -73,6 +87,7 @@ def on_close(ws, close_status_code, close_msg):
 
 
 def run():
+    deadline = time.time() + args.max_runtime_seconds if args.max_runtime_seconds else None
     while True:
         ws = websocket.WebSocketApp(
             f"wss://ws.finnhub.io?token={FINNHUB_TOKEN}",
@@ -81,8 +96,13 @@ def run():
             on_error=on_error,
             on_close=on_close,
         )
+        if deadline:
+            threading.Timer(max(deadline - time.time(), 0), ws.close).start()
         ws.run_forever()
         flush()  # capture anything still buffered before reconnecting
+        if deadline and time.time() >= deadline:
+            print(f"Reached --max-runtime-seconds={args.max_runtime_seconds}; exiting.")
+            return
         print("Disconnected — reconnecting in 5s...")
         time.sleep(5)
 
