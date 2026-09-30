@@ -1,7 +1,8 @@
 -- Bronze table DDL for the Tiingo ingestion jobs (ingest/batch_tiingo_*.py).
--- markets_raw already exists (created via inferred schema on first PySpark write);
--- this documents its actual schema. tickers_raw, tickers_universe, and news_raw
--- have not been created yet — this is the DDL they'll get on first run.
+-- All four tables exist. markets_raw was created via inferred schema on first
+-- PySpark write, so it has no comments in the workspace. tickers_raw and
+-- tickers_universe are rewritten each run with overwrite + overwriteSchema, which
+-- drops the column comments below (the table comment survives).
 
 -- ingest/batch_tiingo_eod.py — daily OHLCV bars for the watchlist, incremental MERGE
 CREATE TABLE IF NOT EXISTS beacon.bronze.markets_raw (
