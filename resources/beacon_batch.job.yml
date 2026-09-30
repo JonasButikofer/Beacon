@@ -1,0 +1,87 @@
+# Daily batch ingestion into beacon.bronze. The four ingest tasks write to
+# separate tables and don't depend on each other, so they run in parallel.
+resources:
+  jobs:
+    beacon_batch:
+      name: beacon_batch
+      max_concurrent_runs: 1
+      schedule:
+        quartz_cron_expression: "0 0 6 * * ?" # daily 6:00 AM
+        timezone_id: ${var.timezone}
+
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "4"
+            dependencies:
+              - requests
+
+      tasks:
+        - task_key: ingest_fred
+          environment_key: default
+          max_retries: 2
+          min_retry_interval_millis: 300000
+          spark_python_task:
+            python_file: ../ingest/batch_fred.py
+
+        - task_key: ingest_tiingo_eod
+          environment_key: default
+          max_retries: 2
+          min_retry_interval_millis: 300000
+          spark_python_task:
+            python_file: ../ingest/batch_tiingo_eod.py
+
+        - task_key: ingest_tiingo_news
+          environment_key: default
+          max_retries: 2
+          min_retry_interval_millis: 300000
+          spark_python_task:
+            python_file: ../ingest/batch_tiingo_news.py
+
+        - task_key: ingest_tiingo_tickers
+          environment_key: default
+          max_retries: 2
+          min_retry_interval_millis: 300000
+          spark_python_task:
+            python_file: ../ingest/batch_tiingo_tickers.py
+
+        # M3/M4: uncomment once dbt/ has a project. Set warehouse_id to your SQL
+        # warehouse (SQL Warehouses -> your warehouse -> Overview -> ID).
+        # - task_key: dbt_build
+        #   depends_on:
+        #     - task_key: ingest_fred
+        #     - task_key: ingest_tiingo_eod
+        #     - task_key: ingest_tiingo_news
+        #     - task_key: ingest_tiingo_tickers
+        #   environment_key: dbt
+        #   dbt_task:
+        #     project_directory: ../dbt
+        #     warehouse_id: <WAREHOUSE_ID>
+        #     catalog: beacon
+        #     commands:
+        #       - dbt deps
+        #       - dbt build
+
+    # The ~100k-row ticker universe changes slowly and is a full overwrite, so
+    # it refreshes weekly instead of with the daily batch.
+    beacon_universe_weekly:
+      name: beacon_universe_weekly
+      max_concurrent_runs: 1
+      schedule:
+        quartz_cron_expression: "0 0 5 ? * SUN" # Sundays 5:00 AM
+        timezone_id: ${var.timezone}
+
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "4"
+            dependencies:
+              - requests
+
+      tasks:
+        - task_key: ingest_tiingo_universe
+          environment_key: default
+          max_retries: 2
+          min_retry_interval_millis: 300000
+          spark_python_task:
+            python_file: ../ingest/batch_tiingo_universe.py

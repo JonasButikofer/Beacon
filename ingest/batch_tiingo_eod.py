@@ -1,5 +1,6 @@
 # ingest/batch_tiingo_eod.py
 # Databricks notebook / job task — `spark` and `dbutils` are pre-injected.
+from databricks.sdk.runtime import dbutils, spark
 import requests
 from pyspark.sql import functions as F
 from pyspark.sql.types import (

@@ -1,6 +1,7 @@
 # ingest/batch_tiingo_tickers.py
 # Databricks notebook / job task — `spark` and `dbutils` are pre-injected.
 # Small reference dataset (one row per watchlist symbol) — full refresh each run.
+from databricks.sdk.runtime import dbutils, spark
 import requests
 from pyspark.sql import functions as F
 from pyspark.sql.types import StructType, StructField, StringType

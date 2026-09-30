@@ -13,6 +13,7 @@
 #   --max-runtime-seconds N   stop cleanly after N seconds (0 = run forever)
 #   --symbols A,B             override the watchlist, e.g. BINANCE:BTCUSDT to get
 #                             trades outside US market hours (crypto trades 24/7)
+from databricks.sdk.runtime import dbutils
 import argparse
 import json
 import threading

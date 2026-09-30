@@ -6,6 +6,7 @@
 # are returned, so the first run will not backfill past news. If the key isn't
 # entitled at all, the API returns 403 — see the explicit check in run() below
 # rather than letting that fail silently as "no new articles."
+from databricks.sdk.runtime import dbutils, spark
 import requests
 from pyspark.sql import functions as F
 from pyspark.sql.types import StructType, StructField, StringType, ArrayType

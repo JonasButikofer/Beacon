@@ -1,0 +1,31 @@
+# Declarative Automation Bundle (DAB) for Beacon's Databricks Workflows.
+#
+#   databricks bundle validate --profile <PROFILE>
+#   databricks bundle deploy   -t dev --profile <PROFILE>
+#   databricks bundle run beacon_batch -t dev --profile <PROFILE>
+#
+# The workspace host comes from the CLI profile, so nothing is hardcoded here.
+# Job definitions live in resources/*.job.yml.
+bundle:
+  name: beacon
+
+include:
+  - resources/*.yml
+
+variables:
+  timezone:
+    description: Timezone for all job schedules.
+    default: America/New_York
+
+targets:
+  # `mode: development` prefixes job names with "[dev <user>]" and PAUSES every
+  # schedule, so deploying here never kicks off real runs on its own.
+  dev:
+    mode: development
+    default: true
+
+  # Schedules are live here. Deploy with: databricks bundle deploy -t prod
+  prod:
+    mode: production
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}

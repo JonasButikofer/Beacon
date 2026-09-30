@@ -7,6 +7,7 @@
 # right for testing and for running as a scheduled batch-style task. Swap to
 # .trigger(processingTime="30 seconds") and run it as its own always-on Job
 # task if it needs to keep pace with the consumer continuously (per spec M2).
+from databricks.sdk.runtime import spark
 from pyspark.sql import functions as F
 from pyspark.sql.types import (
     StructType, StructField, StringType, DoubleType, LongType, ArrayType,

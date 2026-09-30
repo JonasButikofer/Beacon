@@ -5,6 +5,7 @@
 # bulk CSV rather than per-symbol calls (no per-ticker rate-limit cost). Thin
 # columns only (no name/description) — join against tickers_raw in dbt for the
 # richer metadata on the symbols actually tracked.
+from databricks.sdk.runtime import spark
 import csv
 import io
 import zipfile

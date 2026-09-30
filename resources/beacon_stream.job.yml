@@ -1,0 +1,63 @@
+# Finnhub live trades: WebSocket consumer -> quote_landing volume -> Auto Loader -> quotes_raw.
+#
+# Free Edition has one serverless slot and a 5-task concurrency cap, so this does
+# NOT use a continuous trigger. The consumer runs for US market hours only
+# (9:30 AM + 6.5h = 4:00 PM ET) and then exits cleanly via --max-runtime-seconds.
+# On a paid workspace you could switch beacon_stream to `continuous:` and drop
+# the runtime cap.
+resources:
+  jobs:
+    beacon_stream:
+      name: beacon_stream
+      max_concurrent_runs: 1
+      schedule:
+        quartz_cron_expression: "0 30 9 ? * MON-FRI" # weekdays 9:30 AM
+        timezone_id: ${var.timezone}
+
+      environments:
+        - environment_key: finnhub
+          spec:
+            environment_version: "4"
+            dependencies:
+              - websocket-client
+
+      tasks:
+        - task_key: finnhub_consumer
+          environment_key: finnhub
+          spark_python_task:
+            python_file: ../ingest/stream_finnhub_consumer.py
+            parameters:
+              - "--max-runtime-seconds"
+              - "23400"
+
+        # Final sweep so the last files of the day reach Bronze, even if the
+        # consumer failed partway through.
+        - task_key: finnhub_autoloader_final
+          depends_on:
+            - task_key: finnhub_consumer
+          run_if: ALL_DONE
+          environment_key: finnhub
+          spark_python_task:
+            python_file: ../ingest/stream_finnhub_autoloader.py
+
+    # Intraday loads while the consumer is running. The Auto Loader script uses
+    # trigger(availableNow=True): it ingests whatever has landed, then exits.
+    beacon_quotes_loader:
+      name: beacon_quotes_loader
+      max_concurrent_runs: 1
+      schedule:
+        # Every 30 min, weekdays 10:00-15:30. Stops before 4 PM so it can't
+        # overlap finnhub_autoloader_final on the same checkpoint.
+        quartz_cron_expression: "0 0/30 10-15 ? * MON-FRI"
+        timezone_id: ${var.timezone}
+
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "4"
+
+      tasks:
+        - task_key: finnhub_autoloader
+          environment_key: default
+          spark_python_task:
+            python_file: ../ingest/stream_finnhub_autoloader.py
