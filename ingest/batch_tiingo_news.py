@@ -19,11 +19,15 @@ HEADERS = {"Content-Type": "application/json", "Authorization": f"Token {TIINGO_
 
 
 def latest_published() -> str | None:
-    """Return the max published_date already loaded, for incremental pulls."""
+    """Return the date of the latest published_date loaded, for incremental pulls.
+
+    Tiingo's startDate takes YYYY-MM-DD only, so this is a date, not a timestamp.
+    Articles from that day come back again; the MERGE on article_id drops them.
+    """
     if not spark.catalog.tableExists(TABLE):
         return None
     mx = spark.table(TABLE).agg(F.max("published_date")).collect()[0][0]
-    return str(mx) if mx else None
+    return mx.date().isoformat() if mx else None
 
 
 def fetch(start: str | None):

@@ -43,11 +43,9 @@ def latest_dates() -> dict:
     return {r["symbol"]: str(r["mx"]) for r in rows}
 
 
-def fetch(symbol: str, start: str | None):
+def fetch(symbol: str, start: str):
     url = f"https://api.tiingo.com/tiingo/daily/{symbol}/prices"
-    params = {}
-    if start:
-        params["startDate"] = start
+    params = {"startDate": start}
     r = requests.get(url, headers=HEADERS, params=params, timeout=30)
     r.raise_for_status()
     return [
@@ -62,9 +60,27 @@ def fetch(symbol: str, start: str | None):
     ]
 
 
+def fetch_symbol(symbol: str, watermark: str | None):
+    """Incremental pull, widened to full history after a split or dividend.
+
+    Tiingo recomputes adj_* for every past date when a corporate action lands,
+    so an incremental pull alone would leave the stored history on the old basis.
+    Only rows after the watermark count as new — the watermark date itself is
+    re-fetched every run and was already checked when it first arrived.
+    """
+    rows = fetch(symbol, watermark or BACKFILL_START)
+    if watermark and any(
+        r[1] > watermark and (r[12] or r[13] != 1.0)  # div_cash, split_factor
+        for r in rows
+    ):
+        print(f"{symbol}: corporate action since {watermark}; re-pulling full history.")
+        rows = fetch(symbol, BACKFILL_START)
+    return rows
+
+
 def run():
     have = latest_dates()
-    rows = [row for s in WATCHLIST for row in fetch(s, have.get(s, BACKFILL_START))]
+    rows = [row for s in WATCHLIST for row in fetch_symbol(s, have.get(s))]
     if not rows:
         print("No new bars.")
         return
@@ -93,17 +109,25 @@ def run():
     )
     df.createOrReplaceTempView("incoming")
     if spark.catalog.tableExists(TABLE):
-        spark.sql(
+        # Matched rows are rewritten only when Tiingo's adjusted values moved
+        # (i.e. after a corporate-action re-pull), so _ingested_at stays meaningful.
+        m = spark.sql(
             f"""
             MERGE INTO {TABLE} t
             USING incoming s
             ON t.symbol = s.symbol AND t.obs_date = s.obs_date
+            WHEN MATCHED AND NOT (
+                t.adj_open <=> s.adj_open AND t.adj_high <=> s.adj_high
+                AND t.adj_low <=> s.adj_low AND t.adj_close <=> s.adj_close
+                AND t.adj_volume <=> s.adj_volume
+            ) THEN UPDATE SET *
             WHEN NOT MATCHED THEN INSERT *
         """
-        )
+        ).collect()[0]
+        print(f"Inserted {m['num_inserted_rows']} rows, updated {m['num_updated_rows']}.")
     else:
         df.write.format("delta").saveAsTable(TABLE)
-    print(f"Loaded {df.count()} rows.")
+        print(f"Loaded {df.count()} rows.")
 
 
 run()

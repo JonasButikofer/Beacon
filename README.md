@@ -26,8 +26,8 @@ The market-data jobs track the same 9 ETFs:
 
 | Dataset | Source | Endpoint | Bronze table | Job | Load pattern |
 |---|---|---|---|---|---|
-| Macro indicators | FRED (St. Louis Fed) | `/fred/series/observations` | `macro_raw` | [batch_fred.py](ingest/batch_fred.py) | Batch, incremental MERGE on `(series_id, obs_date)` |
-| Daily OHLCV prices | Tiingo | `/tiingo/daily/<symbol>/prices` | `markets_raw` | [batch_tiingo_eod.py](ingest/batch_tiingo_eod.py) | Batch, incremental MERGE on `(symbol, obs_date)`, backfills from 1990-01-01 |
+| Macro indicators | FRED (St. Louis Fed) | `/fred/series/observations` | `macro_raw` | [batch_fred.py](ingest/batch_fred.py) | Batch, MERGE on `(series_id, obs_date)`; re-pulls the last 400 days each run so FRED revisions overwrite old values |
+| Daily OHLCV prices | Tiingo | `/tiingo/daily/<symbol>/prices` | `markets_raw` | [batch_tiingo_eod.py](ingest/batch_tiingo_eod.py) | Batch, incremental MERGE on `(symbol, obs_date)`, backfills from 1990-01-01; a split or dividend triggers a full re-pull of that symbol to refresh `adj_*` history |
 | Watchlist ticker metadata | Tiingo | `/tiingo/daily/<symbol>` | `tickers_raw` | [batch_tiingo_tickers.py](ingest/batch_tiingo_tickers.py) | Batch, full overwrite |
 | Ticker universe (~100k+ symbols) | Tiingo | Bulk `supported_tickers.zip` | `tickers_universe` | [batch_tiingo_universe.py](ingest/batch_tiingo_universe.py) | Batch, full overwrite |
 | News articles | Tiingo | `/tiingo/news` | `news_raw` | [batch_tiingo_news.py](ingest/batch_tiingo_news.py) | Batch, incremental MERGE on `article_id` (free tier has no historical backfill) |
@@ -46,4 +46,4 @@ The market-data jobs track the same 9 ETFs:
 | GDP | Gross Domestic Product | Quarterly |
 | UMCSENT | U. of Michigan Consumer Sentiment | Monthly |
 
-The descriptions for these series are kept in `beacon.gold.dim_indicator` ([FRED_data_description_Gold.sql](sql/FRED_data_description_Gold.sql)). The Bronze table DDL is in [sql/](sql/).
+The descriptions for these series are kept in `beacon.gold.dim_indicator`, loaded by `dbt seed` from [dbt/seeds/dim_indicator.csv](dbt/seeds/dim_indicator.csv). The Bronze table DDL is in [sql/](sql/).

@@ -1,0 +1,17 @@
+# Minimal dbt project — just enough to own the dim_indicator seed for now.
+# Models (Silver staging, Gold marts) and profiles.yml come with M3.
+name: beacon
+version: "1.0.0"
+profile: beacon
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+
+seeds:
+  beacon:
+    +schema: gold
+    +persist_docs:
+      relation: true
+      columns: true

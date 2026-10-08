@@ -1,0 +1,39 @@
+version: 2
+# seeds in dbt are there to be pushed straight to gold
+# these are normally tables that are reference and are rarely updated.
+seeds:
+  - name: dim_indicator
+    description: Reference dimension explaining each macro indicator ingested from FRED. Joins to fact/mart tables on series_id.
+    config:
+      column_types:
+        series_id: string
+        indicator_name: string
+        category: string
+        frequency: string
+        units: string
+        description: string
+        why_it_matters: string
+    columns:
+      - name: series_id
+        description: FRED series ID — joins to mart_macro_market_signals.series_id
+        data_tests: [not_null, unique]
+      - name: indicator_name
+        description: Human-readable name
+      - name: category
+        description: inflation | labor | rates | growth | sentiment
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [inflation, labor, rates, growth, sentiment]
+      - name: frequency
+        description: daily | monthly | quarterly
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [daily, monthly, quarterly]
+      - name: units
+        description: index | percent | usd_bn
+      - name: description
+        description: What the series measures
+      - name: why_it_matters
+        description: Why this matters for markets/the economy

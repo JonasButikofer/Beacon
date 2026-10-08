@@ -1,5 +1,7 @@
 # ingest/batch_fred.py
 # Databricks notebook / job task — `spark` and `dbutils` are pre-injected.
+from datetime import timedelta
+
 from databricks.sdk.runtime import dbutils, spark
 import requests
 from pyspark.sql import functions as F
@@ -8,10 +10,15 @@ from pyspark.sql.types import StructType, StructField, StringType, DoubleType
 FRED_KEY = dbutils.secrets.get("beacon", "fred_key")
 SERIES = ["CPIAUCSL", "UNRATE", "FEDFUNDS", "DGS10", "DGS2", "T10Y2Y", "GDP", "UMCSENT"]
 TABLE = "beacon.bronze.macro_raw"
+# FRED revises recent readings (monthly series for a few months, GDP for over a
+# year), so each run re-pulls this window behind the watermark and the MERGE
+# overwrites any value that changed. Bronze holds the latest vintage, not the
+# first print.
+REVISION_LOOKBACK_DAYS = 400
 
 
 def latest_dates() -> dict:
-    """Return {series_id: max obs_date} already loaded, for incremental pulls."""
+    """Return {series_id: pull start} — max obs_date loaded minus the revision lookback."""
     if not spark.catalog.tableExists(TABLE):
         return {}
     rows = (
@@ -20,7 +27,10 @@ def latest_dates() -> dict:
         .agg(F.max("obs_date").alias("mx"))
         .collect()
     )
-    return {r["series_id"]: str(r["mx"]) for r in rows}
+    return {
+        r["series_id"]: str(r["mx"] - timedelta(days=REVISION_LOOKBACK_DAYS))
+        for r in rows
+    }
 
 
 def fetch(series_id: str, start: str | None):
@@ -58,17 +68,19 @@ def run():
     )
     df.createOrReplaceTempView("incoming")
     if spark.catalog.tableExists(TABLE):
-        spark.sql(
+        m = spark.sql(
             f"""
             MERGE INTO {TABLE} t
             USING incoming s
             ON t.series_id = s.series_id AND t.obs_date = s.obs_date
+            WHEN MATCHED AND NOT (t.value <=> s.value) THEN UPDATE SET *
             WHEN NOT MATCHED THEN INSERT *
         """
-        )
+        ).collect()[0]
+        print(f"Inserted {m['num_inserted_rows']} rows, revised {m['num_updated_rows']}.")
     else:
         df.write.format("delta").saveAsTable(TABLE)
-    print(f"Loaded {df.count()} rows.")
+        print(f"Loaded {df.count()} rows.")
 
 
 run()

@@ -39,25 +39,3 @@ resources:
           environment_key: finnhub
           spark_python_task:
             python_file: ../ingest/stream_finnhub_autoloader.py
-
-    # Intraday loads while the consumer is running. The Auto Loader script uses
-    # trigger(availableNow=True): it ingests whatever has landed, then exits.
-    beacon_quotes_loader:
-      name: beacon_quotes_loader
-      max_concurrent_runs: 1
-      schedule:
-        # Every 30 min, weekdays 10:00-15:30. Stops before 4 PM so it can't
-        # overlap finnhub_autoloader_final on the same checkpoint.
-        quartz_cron_expression: "0 0/30 10-15 ? * MON-FRI"
-        timezone_id: ${var.timezone}
-
-      environments:
-        - environment_key: default
-          spec:
-            environment_version: "4"
-
-      tasks:
-        - task_key: finnhub_autoloader
-          environment_key: default
-          spark_python_task:
-            python_file: ../ingest/stream_finnhub_autoloader.py

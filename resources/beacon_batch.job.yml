@@ -61,27 +61,3 @@ resources:
         #     commands:
         #       - dbt deps
         #       - dbt build
-
-    # The ~100k-row ticker universe changes slowly and is a full overwrite, so
-    # it refreshes weekly instead of with the daily batch.
-    beacon_universe_weekly:
-      name: beacon_universe_weekly
-      max_concurrent_runs: 1
-      schedule:
-        quartz_cron_expression: "0 0 5 ? * SUN" # Sundays 5:00 AM
-        timezone_id: ${var.timezone}
-
-      environments:
-        - environment_key: default
-          spec:
-            environment_version: "4"
-            dependencies:
-              - requests
-
-      tasks:
-        - task_key: ingest_tiingo_universe
-          environment_key: default
-          max_retries: 2
-          min_retry_interval_millis: 300000
-          spark_python_task:
-            python_file: ../ingest/batch_tiingo_universe.py
