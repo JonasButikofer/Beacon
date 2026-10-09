@@ -1,13 +1,12 @@
-# Daily batch ingestion into beacon.bronze. The four ingest tasks write to
+# Daily batch ingestion into beacon.bronze. The ingest tasks write to
 # separate tables and don't depend on each other, so they run in parallel.
+# No schedule here: beacon_daily (beacon_daily.job.yml) runs it at 6:00 AM and
+# starts beacon_quality when it finishes.
 resources:
   jobs:
     beacon_batch:
       name: beacon_batch
       max_concurrent_runs: 1
-      schedule:
-        quartz_cron_expression: "0 0 6 * * ?" # daily 6:00 AM
-        timezone_id: ${var.timezone}
 
       environments:
         - environment_key: default
@@ -31,12 +30,14 @@ resources:
           spark_python_task:
             python_file: ../ingest/batch_tiingo_eod.py
 
-        - task_key: ingest_tiingo_news
-          environment_key: default
-          max_retries: 2
-          min_retry_interval_millis: 300000
-          spark_python_task:
-            python_file: ../ingest/batch_tiingo_news.py
+        # Disabled: the free Tiingo plan returns 403 on /tiingo/news. To re-enable,
+        # uncomment this task and set NEWS_CHECK_ENABLED = True in agent/config.py.
+        # - task_key: ingest_tiingo_news
+        #   environment_key: default
+        #   max_retries: 2
+        #   min_retry_interval_millis: 300000
+        #   spark_python_task:
+        #     python_file: ../ingest/batch_tiingo_news.py
 
         - task_key: ingest_tiingo_tickers
           environment_key: default
@@ -51,7 +52,6 @@ resources:
         #   depends_on:
         #     - task_key: ingest_fred
         #     - task_key: ingest_tiingo_eod
-        #     - task_key: ingest_tiingo_news
         #     - task_key: ingest_tiingo_tickers
         #   environment_key: dbt
         #   dbt_task:

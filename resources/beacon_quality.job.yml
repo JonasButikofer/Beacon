@@ -1,0 +1,56 @@
+# Daily data quality checks + LLM diagnosis (agent/).
+#
+# run_checks writes one row per check to beacon.ops.dq_results. diagnose runs
+# even if run_checks crashed (ALL_DONE); when something didn't pass, it asks
+# Claude to investigate with read-only tools and saves the report to
+# beacon.ops.dq_incidents. It fails the job on any `error`-severity failure, so
+# the email below goes out with a link to the run.
+#
+# Its own job (not a task in beacon_batch) so it can be run and tuned on its own.
+# No schedule here: beacon_daily (beacon_daily.job.yml) starts it as soon as
+# beacon_batch finishes, whether ingest succeeded or failed.
+resources:
+  jobs:
+    beacon_quality:
+      name: beacon_quality
+      max_concurrent_runs: 1
+
+      email_notifications:
+        on_failure:
+          - ${workspace.current_user.userName}
+
+      environments:
+        - environment_key: agent
+          spec:
+            environment_version: "4"
+            dependencies:
+              - anthropic
+
+      tasks:
+        - task_key: run_checks
+          environment_key: agent
+          spark_python_task:
+            python_file: ../agent/run_checks.py
+            parameters:
+              - "--run-id"
+              - "{{job.run_id}}"
+              - "--bundle-root"
+              - "${workspace.file_path}"
+              - "--target"
+              - "${bundle.target}"
+
+        - task_key: diagnose
+          depends_on:
+            - task_key: run_checks
+          run_if: ALL_DONE
+          environment_key: agent
+          # Serverless retries this task after it fails on purpose (a max_retries
+          # of 0 isn't kept). diagnose.py skips a run it has already diagnosed,
+          # so the retry costs no tokens.
+          spark_python_task:
+            python_file: ../agent/diagnose.py
+            parameters:
+              - "--run-id"
+              - "{{job.run_id}}"
+              - "--bundle-root"
+              - "${workspace.file_path}"

@@ -1,0 +1,32 @@
+# Daily orchestration: ingest, then data quality, as one DAG.
+#
+# beacon_quality starts when beacon_batch finishes instead of at a fixed time,
+# so a slow or retried ingest can't race the checks. run_if: ALL_DONE means the
+# checks still run when ingest fails; that's the case they most need to catch
+# (the job_runs:beacon_batch check sees the failed run).
+#
+# The child jobs have no schedules of their own; run them by hand with
+# `databricks bundle run beacon_batch` / `beacon_quality` as before.
+#
+# Free Edition's 5-task cap: each run_job_task holds a slot while its child
+# runs, so the peak is 1 + 3 ingest tasks = 4.
+resources:
+  jobs:
+    beacon_daily:
+      name: beacon_daily
+      max_concurrent_runs: 1
+      schedule:
+        quartz_cron_expression: "0 0 6 * * ?" # daily 6:00 AM
+        timezone_id: ${var.timezone}
+
+      tasks:
+        - task_key: ingest
+          run_job_task:
+            job_id: ${resources.jobs.beacon_batch.id}
+
+        - task_key: data_quality
+          depends_on:
+            - task_key: ingest
+          run_if: ALL_DONE
+          run_job_task:
+            job_id: ${resources.jobs.beacon_quality.id}

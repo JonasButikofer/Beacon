@@ -30,7 +30,7 @@ The market-data jobs track the same 9 ETFs:
 | Daily OHLCV prices | Tiingo | `/tiingo/daily/<symbol>/prices` | `markets_raw` | [batch_tiingo_eod.py](ingest/batch_tiingo_eod.py) | Batch, incremental MERGE on `(symbol, obs_date)`, backfills from 1990-01-01; a split or dividend triggers a full re-pull of that symbol to refresh `adj_*` history |
 | Watchlist ticker metadata | Tiingo | `/tiingo/daily/<symbol>` | `tickers_raw` | [batch_tiingo_tickers.py](ingest/batch_tiingo_tickers.py) | Batch, full overwrite |
 | Ticker universe (~100k+ symbols) | Tiingo | Bulk `supported_tickers.zip` | `tickers_universe` | [batch_tiingo_universe.py](ingest/batch_tiingo_universe.py) | Batch, full overwrite |
-| News articles | Tiingo | `/tiingo/news` | `news_raw` | [batch_tiingo_news.py](ingest/batch_tiingo_news.py) | Batch, incremental MERGE on `article_id` (free tier has no historical backfill) |
+| News articles | Tiingo | `/tiingo/news` | `news_raw` | [batch_tiingo_news.py](ingest/batch_tiingo_news.py) | **Disabled**: the free Tiingo plan returns 403 on this endpoint. Batch, incremental MERGE on `article_id` |
 | Live trades | Finnhub | WebSocket `wss://ws.finnhub.io` | `quotes_raw` | [stream_finnhub_consumer.py](ingest/stream_finnhub_consumer.py) → [stream_finnhub_autoloader.py](ingest/stream_finnhub_autoloader.py) | Streaming: consumer writes JSON to the `quote_landing` volume, Auto Loader appends it to Bronze |
 
 ### FRED series
