@@ -83,6 +83,9 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # The dispatch hop makes github-actions[bot] the actor, which the action
+          # rejects unless allowed here.
+          allowed_bots: "github-actions"
           prompt: |
             You are reviewing code pushed directly to the master branch of ${{ github.repository }}.
             Commits to review: ${{ steps.range.outputs.range }}
