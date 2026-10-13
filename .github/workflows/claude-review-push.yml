@@ -81,6 +81,7 @@ jobs:
           echo "short=$(git rev-parse --short "$after")" >> "$GITHUB_OUTPUT"
 
       - uses: anthropics/claude-code-action@v1
+        id: claude
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # The dispatch hop makes github-actions[bot] the actor, which the action
@@ -110,3 +111,20 @@ jobs:
             --model claude-sonnet-5-5
             --max-turns 25
             --allowedTools "Read,Grep,Glob,Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(gh issue create:*)"
+
+      # The action hides Claude's output in the log. Copy just the final message
+      # (the review summary) to the run's Summary page, without the tool calls.
+      - name: Write review summary
+        if: always()
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          {
+            echo "## Claude review: ${{ steps.range.outputs.range }}"
+            echo
+            if [ -n "$EXECUTION_FILE" ] && [ -f "$EXECUTION_FILE" ]; then
+              jq -r '[.[] | select(.type == "result")] | last | .result // "No final message."' "$EXECUTION_FILE"
+            else
+              echo "No execution output; check the Claude step's log."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
