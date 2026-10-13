@@ -2,9 +2,13 @@
 # finds something worth fixing (major or blocker). Clean pushes produce no issue;
 # the summary is in the Actions run log.
 #
-# Uses Anthropic's Claude Code action in automation mode (a `prompt` input).
-# Its docs show PR and issue triggers; push isn't documented, so check the first
-# run in the Actions tab.
+# Two hops, because claude-code-action rejects `push` events ("Unsupported event
+# type: push") but supports workflow_dispatch:
+#   1. on push, the `dispatch` job re-runs this workflow via workflow_dispatch,
+#      passing the pushed commit range (GITHUB_TOKEN may start workflow_dispatch
+#      runs, unlike most events);
+#   2. that run's `review` job calls the action.
+# You can also start a review by hand: Actions > Claude review (push) > Run workflow.
 #
 # Setup: install the Claude GitHub app on this repo (https://github.com/apps/claude)
 # and add the repository secret ANTHROPIC_API_KEY.
@@ -17,40 +21,81 @@ on:
       - "docs/**"
       - "**/*.png"
   workflow_dispatch:
-
-permissions:
-  contents: read
-  issues: write
-  id-token: write
+    inputs:
+      before:
+        description: "Start of the range (exclusive). Leave empty to review only the 'after' commit."
+        required: false
+        default: ""
+      after:
+        description: "End of the range. Leave empty for the latest master commit."
+        required: false
+        default: ""
 
 concurrency:
-  group: claude-review-push
+  group: claude-review-push-${{ github.event_name }}
   cancel-in-progress: false
 
 jobs:
+  dispatch:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Start the review run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run claude-review-push.yml \
+            --repo "${{ github.repository }}" \
+            --ref master \
+            -f before="${{ github.event.before }}" \
+            -f after="${{ github.sha }}"
+
   review:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0 # full history, so the agent can diff the pushed range
+
+      - name: Resolve commit range
+        id: range
+        run: |
+          after="${{ inputs.after }}"
+          [ -z "$after" ] && after="$(git rev-parse HEAD)"
+          before="${{ inputs.before }}"
+          if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$before^{commit}" 2>/dev/null; then
+            range="$after"            # single commit
+          else
+            range="$before..$after"
+          fi
+          echo "range=$range" >> "$GITHUB_OUTPUT"
+          echo "short=$(git rev-parse --short "$after")" >> "$GITHUB_OUTPUT"
 
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
-            You are reviewing code just pushed directly to the master branch of ${{ github.repository }}.
-            Commit range: ${{ github.event.before }}..${{ github.sha }}
-            (If the first SHA is all zeros, or this run was started manually, review only commit ${{ github.sha }}.)
+            You are reviewing code pushed directly to the master branch of ${{ github.repository }}.
+            Commits to review: ${{ steps.range.outputs.range }}
+            (A single SHA means review just that commit: use `git show <sha>`.
+            A range A..B means use `git log --oneline A..B` and `git diff A..B`.)
 
-            1. Run `git log --oneline <range>` and `git diff <range>` to see what changed.
+            1. Look at what changed.
             2. Read review/checklist.md and apply it. Read surrounding files or callers when needed
                to confirm an issue; don't guess.
             3. Classify each finding: blocker, major, minor, or nit. Only keep findings with a
                concrete failure scenario.
             4. If there is at least one blocker or major finding, create exactly ONE issue:
-               gh issue create --title "Code review: <short sha> <one-line summary>" --body "<findings>"
+               gh issue create --title "Code review: ${{ steps.range.outputs.short }} <one-line summary>" --body "<findings>"
                The body lists each finding as: severity, file:line, what's wrong, how it fails,
                suggested fix. Put minor findings in a short "Also noticed" section at the end.
             5. If there are only minor/nit findings or none, do NOT create an issue. End with a short

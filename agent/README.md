@@ -51,7 +51,7 @@ flowchart TD
         src["list_source_files<br/>read_source_file<br/>ingest/ resources/ sql/ agent/ dbt/"]
     end
 
-    claude["Claude API<br/>claude-opus-5-5"]
+    claude["Claude API<br/>claude-sonnet-5-5"]
     secret[("Secret scope: beacon<br/>anthropic_api_key")]
 
     agent <-->|messages| claude
@@ -135,5 +135,5 @@ Write a function in `checks.py` decorated with `@check` that returns a list of `
 
 - The agent's SQL is limited to one `SELECT`/`WITH`/`DESCRIBE`/`SHOW` statement, and a keyword denylist blocks writes. This is a guard, not a permission boundary. The job runs as you, so for real isolation run it as a service principal that only has `SELECT` on `beacon.bronze` and `beacon.ops`.
 - `read_source_file` can only read files under `ingest/`, `resources/`, `sql/`, `agent/` and `dbt/`. It can't read `.env`.
-- Cost: the agent only runs on days with failures. It uses `claude-opus-5-5` at `medium` effort, capped at 15 turns per run. Token counts are stored in `dq_incidents`.
+- Cost: the agent only runs on days with failures. It uses `claude-sonnet-5-5` at `medium` effort, capped at 15 turns per run. Token counts are stored in `dq_incidents`.
 - Server-side refusal fallback (`fallbacks="default"`) is turned on. If a run reports `TypeError ... fallbacks`, the installed `anthropic` package is too old for that parameter.
