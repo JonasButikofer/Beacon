@@ -1,0 +1,20 @@
+snapshots:
+  - name: snap_tickers
+    description: >
+      SCD Type 2 history of watchlist metadata. tickers_raw is overwritten every
+      run, so this is the only record of past names, exchanges and descriptions.
+      end_date is left out of check_cols because Tiingo moves it forward every
+      trading day.
+    relation: source('bronze', 'tickers_raw')
+    config:
+      unique_key: symbol
+      strategy: check
+      check_cols: [name, exchange_code, asset_type, description, start_date]
+      hard_deletes: invalidate
+    columns:
+      - name: symbol
+        description: Ticker symbol
+      - name: dbt_valid_from
+        description: When this version of the row was first seen
+      - name: dbt_valid_to
+        description: When this version was replaced (null for the current version)

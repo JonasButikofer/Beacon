@@ -1,0 +1,41 @@
+version: 2
+
+models:
+  - name: int_macro_daily
+    description: >
+      Every FRED series forward-filled to a daily calendar, one row per
+      (date_day, series_id), with 3- and 12-month changes. Values are as of
+      obs_date, not release date, so monthly prints appear several weeks before
+      they were actually published.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [date_day, series_id]
+    columns:
+      - name: date_day
+        description: Calendar day (every day, including weekends)
+        data_tests: [not_null]
+      - name: series_id
+        description: FRED series ID; joins to dim_indicator.series_id
+        data_tests: [not_null]
+      - name: obs_date
+        description: Date of the observation being carried forward
+      - name: days_since_obs
+        description: Days between date_day and obs_date, i.e. how stale the value is
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: value
+        description: Latest observed value on or before date_day, in the series' units
+        data_tests: [not_null]
+      - name: value_3m_ago
+        description: The series' value as of 3 months before obs_date
+      - name: value_12m_ago
+        description: The series' value as of 12 months before obs_date
+      - name: chg_3m
+        description: value minus value_3m_ago, in the series' units (percentage points for rates)
+      - name: chg_12m
+        description: value minus value_12m_ago, in the series' units
+      - name: pct_chg_12m
+        description: Year-over-year % change in percent (3.1 = +3.1%). For CPIAUCSL this is the headline inflation rate.

@@ -47,3 +47,32 @@ The market-data jobs track the same 9 ETFs:
 | UMCSENT | U. of Michigan Consumer Sentiment | Monthly |
 
 The descriptions for these series are kept in `beacon.gold.dim_indicator`, loaded by `dbt seed` from [dbt/seeds/dim_indicator.csv](dbt/seeds/dim_indicator.csv). The Bronze table DDL is in [sql/](sql/).
+
+## Transformations (dbt)
+
+The dbt project in [dbt/](dbt/) builds Silver and Gold from Bronze. It runs every morning as the `dbt_build` task in `beacon_daily` (ingest → dbt → data quality).
+
+| Layer | Model | Grain | What it is |
+|---|---|---|---|
+| silver | `stg_markets` | symbol, day | Daily bars, deduplicated, with `daily_return` |
+| silver | `stg_macro` | series, obs date | FRED observations labelled from `dim_indicator` |
+| silver | `stg_trades` | trade | Finnhub trades, deduplicated (incremental) |
+| silver | `int_macro_daily` | day, series | Each FRED series forward-filled to every day, with 3- and 12-month changes |
+| silver | `snap_tickers` | symbol, version | SCD2 history of watchlist metadata (snapshot) |
+| gold | `dim_indicator` | series | FRED series descriptions (seed) |
+| gold | `dim_symbol` | symbol | Watchlist metadata and role (broad market, sector, size, bond) |
+| gold | `dim_date` | day | Calendar with trading-day and period-end flags |
+| gold | `mart_market_daily` | symbol, day | Return, 50/200-day averages and crosses, 20-day volatility, drawdown |
+| gold | `mart_macro_market_signals` | symbol, day | ETF returns next to the macro backdrop and regime labels |
+| gold | `mart_sector_relative_strength` | symbol, day | Sector, small-cap and bond ETFs vs SPY over 1/3/6 months, ranked |
+| gold | `mart_intraday_bars` | symbol, interval, bar | 1- and 5-minute OHLCV + VWAP from live trades (incremental) |
+
+Every model and column is documented in the `_*.yml` files, and the docs are written to Unity Catalog as table and column comments.
+
+Run locally from `dbt/` with the `.env` variables exported. [dbt/profiles.yml](dbt/profiles.yml) reads them.
+
+```bash
+dbt deps
+dbt build              # seeds, snapshot, models and tests
+dbt source freshness   # bronze freshness (warn/error windows in models/staging/_sources.yml)
+```

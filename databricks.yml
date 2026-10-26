@@ -16,6 +16,10 @@ variables:
   timezone:
     description: Timezone for all job schedules.
     default: America/New_York
+  warehouse_id:
+    description: SQL warehouse the dbt task runs on.
+    lookup:
+      warehouse: Serverless Starter Warehouse
 
 targets:
   # `mode: development` prefixes job names with "[dev <user>]" and PAUSES every

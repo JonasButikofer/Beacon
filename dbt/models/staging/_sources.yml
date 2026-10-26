@@ -1,0 +1,51 @@
+version: 2
+# Bronze tables written by the ingest jobs (see sql/ for their DDL).
+# Freshness mirrors the limits in agent/config.py. `dbt source freshness` runs
+# last in the beacon_daily dbt task, so a stale source never blocks the build.
+# The MERGE tables measure lag from the data's own date, not _ingested_at:
+# a weekend or holiday ingests nothing, which isn't staleness.
+sources:
+  - name: bronze
+    database: beacon
+    schema: bronze
+    tables:
+      - name: markets_raw
+        description: Daily OHLCV bars for the watchlist ETFs from Tiingo. Incremental MERGE on (symbol, obs_date).
+        config:
+          loaded_at_field: cast(obs_date as timestamp)
+          freshness:
+            warn_after: {count: 4, period: day}
+            error_after: {count: 7, period: day}
+
+      - name: macro_raw
+        description: FRED observations for the tracked series. Incremental MERGE on (series_id, obs_date).
+        # Daily Treasury series set the max obs_date; per-series lag is checked
+        # by agent/checks.py:macro_freshness.
+        config:
+          loaded_at_field: cast(obs_date as timestamp)
+          freshness:
+            warn_after: {count: 7, period: day}
+            error_after: {count: 14, period: day}
+
+      - name: quotes_raw
+        description: Finnhub live trades, appended by Auto Loader during market hours.
+        config:
+          loaded_at_field: trade_ts
+          freshness:
+            warn_after: {count: 4, period: day}
+
+      - name: tickers_raw
+        description: Watchlist metadata from Tiingo. Full overwrite daily.
+        config:
+          loaded_at_field: _ingested_at
+          freshness:
+            warn_after: {count: 2, period: day}
+            error_after: {count: 4, period: day}
+
+      - name: tickers_universe
+        description: Full Tiingo symbol universe. Full overwrite weekly.
+        config:
+          loaded_at_field: _ingested_at
+          freshness:
+            warn_after: {count: 9, period: day}
+            error_after: {count: 15, period: day}

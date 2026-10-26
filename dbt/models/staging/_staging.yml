@@ -1,0 +1,118 @@
+version: 2
+
+models:
+  - name: stg_markets
+    description: Daily OHLCV bars for the watchlist ETFs, one row per (symbol, obs_date). Rebuilt in full each run because Tiingo rewrites adjusted history after dividends and splits.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [symbol, obs_date]
+    columns:
+      - name: symbol
+        description: Ticker symbol, e.g. SPY
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_symbol')
+                field: symbol
+      - name: obs_date
+        description: Trading date
+        data_tests: [not_null]
+      - name: open
+        description: Raw open price
+      - name: high
+        description: Raw high price
+      - name: low
+        description: Raw low price
+      - name: close
+        description: Raw close price
+      - name: volume
+        description: Raw share volume
+      - name: adj_open
+        description: Split/dividend-adjusted open
+      - name: adj_high
+        description: Split/dividend-adjusted high
+      - name: adj_low
+        description: Split/dividend-adjusted low
+      - name: adj_close
+        description: Split/dividend-adjusted close. Use this for returns.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: false
+      - name: adj_volume
+        description: Split/dividend-adjusted volume
+      - name: div_cash
+        description: Cash dividend paid on this date (0 if none)
+      - name: split_factor
+        description: Split ratio applied on this date (1.0 = no split)
+      - name: daily_return
+        description: adj_close over the previous trading day's adj_close, minus 1, as a fraction (0.01 = +1%). Null on a symbol's first day.
+      - name: _ingested_at
+        description: When the bronze row was loaded
+
+  - name: stg_macro
+    description: FRED observations, one row per (series_id, obs_date), with the indicator's name, category, frequency and units from dim_indicator.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [series_id, obs_date]
+    columns:
+      - name: series_id
+        description: FRED series ID, e.g. CPIAUCSL
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_indicator')
+                field: series_id
+      - name: obs_date
+        description: Observation date. Monthly series are dated the 1st of the month, quarterly series the 1st of the quarter.
+        data_tests: [not_null]
+      - name: value
+        description: Observed value, in the series' units (latest FRED vintage, not first print)
+        data_tests: [not_null]
+      - name: indicator_name
+        description: Human-readable name from dim_indicator
+      - name: category
+        description: inflation | labor | rates | growth | sentiment
+      - name: frequency
+        description: daily | monthly | quarterly
+      - name: units
+        description: index | percent | usd_bn
+      - name: _ingested_at
+        description: When the bronze row was loaded
+
+  - name: stg_trades
+    description: Finnhub live trades, deduplicated on a hash of every field. Incremental; each run merges the trades Auto Loader has appended since the last run.
+    columns:
+      - name: trade_key
+        description: sha2 hash of symbol, trade_time, price, volume and conditions. Finnhub has no trade id.
+        data_tests: [not_null, unique]
+      - name: symbol
+        description: Ticker symbol
+        data_tests: [not_null]
+      - name: price
+        description: Trade price
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: false
+      - name: volume
+        description: Trade size in shares
+      - name: conditions
+        description: Finnhub trade condition codes
+      - name: trade_ts
+        description: Trade timestamp (UTC instant)
+        data_tests: [not_null]
+      - name: trade_date
+        description: Trading date in US Eastern time
+      - name: is_regular_session
+        description: True for trades between 9:30 and 16:00 Eastern; false for pre-market and after-hours
+      - name: _ingested_at
+        description: When Auto Loader appended the bronze row

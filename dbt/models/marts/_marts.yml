@@ -1,0 +1,272 @@
+version: 2
+
+models:
+  - name: dim_date
+    description: Calendar from the first watchlist bar to today, with trading-day and period-end flags. A trading day is a day the watchlist has a bar for.
+    columns:
+      - name: date_day
+        description: Calendar day
+        data_tests: [not_null, unique]
+      - name: year
+        description: Calendar year
+      - name: quarter
+        description: Calendar quarter, 1-4
+      - name: month
+        description: Calendar month, 1-12
+      - name: month_name
+        description: Month name, e.g. October
+      - name: day_of_week
+        description: 1 = Sunday ... 7 = Saturday (Spark dayofweek)
+      - name: day_name
+        description: Day name, e.g. Monday
+      - name: is_weekend
+        description: Saturday or Sunday
+      - name: is_trading_day
+        description: The watchlist has a bar for this day. Today is false until its EOD bar is ingested.
+      - name: is_month_end
+        description: Last calendar day of the month
+      - name: is_quarter_end
+        description: Last calendar day of the quarter
+      - name: is_year_end
+        description: December 31
+      - name: is_last_trading_day_of_month
+        description: Last trading day of a finished month (false for every day of the current month)
+
+  - name: dim_symbol
+    description: One row per watchlist symbol with Tiingo metadata and its role in the watchlist (broad market, sector, size, bond).
+    columns:
+      - name: symbol
+        description: Ticker symbol
+        data_tests: [not_null, unique]
+      - name: name
+        description: Fund name from Tiingo
+      - name: description
+        description: Tiingo-provided description
+      - name: asset_type
+        description: ETF | Stock, as tagged in the ingest job's watchlist
+      - name: exchange_code
+        description: Listing exchange
+      - name: price_currency
+        description: Currency prices are quoted in, from the Tiingo universe
+      - name: role
+        description: broad_market | sector | size | bond | other
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [broad_market, sector, size, bond]
+      - name: segment
+        description: What the symbol tracks, e.g. Financials or S&P 500
+      - name: is_benchmark
+        description: True for SPY, the benchmark for relative strength
+      - name: first_price_date
+        description: First trading date in stg_markets
+      - name: last_price_date
+        description: Latest trading date in stg_markets
+
+  - name: mart_market_daily
+    description: >
+      One row per ETF per trading day with its return, trend (50/200-day moving
+      averages and crosses), 20-day volatility and drawdown from the running
+      peak. All fractions: 0.01 = 1%. Indicators are null until the symbol has
+      enough history for their window.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [symbol, obs_date]
+    columns:
+      - name: symbol
+        description: Ticker symbol
+        data_tests: [not_null]
+      - name: obs_date
+        description: Trading date
+        data_tests: [not_null]
+      - name: close
+        description: Raw close price, as quoted that day
+      - name: adj_close
+        description: Split/dividend-adjusted close; every indicator below is computed on this
+      - name: volume
+        description: Raw share volume
+      - name: daily_return
+        description: Change in adj_close from the previous trading day, as a fraction
+      - name: sma_50
+        description: Average adj_close over the last 50 trading days
+      - name: sma_200
+        description: Average adj_close over the last 200 trading days
+      - name: above_sma_200
+        description: adj_close is above its 200-day average, the usual shorthand for an uptrend
+      - name: cross_signal
+        description: golden_cross on the day sma_50 crosses above sma_200, death_cross on the day it crosses below, otherwise null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [golden_cross, death_cross]
+      - name: vol_20d_ann
+        description: Standard deviation of the last 20 daily returns, annualized (x sqrt 252). 0.15 = 15% a year.
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: running_peak
+        description: Highest adj_close to date
+      - name: drawdown
+        description: How far adj_close is below running_peak, as a fraction (-0.12 = 12% below the peak; 0 = at a new high)
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: -1
+                max_value: 0
+
+  - name: mart_macro_market_signals
+    description: >
+      One row per ETF per trading day, pairing its return with the macro
+      backdrop as of that day and regime labels (yield curve, Fed, inflation).
+      Macro values come from int_macro_daily and are as of obs_date, so monthly
+      prints appear before their real release date. Rates and *_pct columns are
+      in percent (4.3 = 4.3%); returns are fractions. Indicator descriptions
+      are in dim_indicator.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [symbol, obs_date]
+    columns:
+      - name: obs_date
+        description: Trading date
+        data_tests: [not_null]
+      - name: symbol
+        description: Ticker symbol
+        data_tests: [not_null]
+      - name: adj_close
+        description: Split/dividend-adjusted close
+      - name: daily_return
+        description: Change in adj_close from the previous trading day, as a fraction
+      - name: fwd_21d_return
+        description: Return over the next 21 trading days (~1 month), as a fraction. Looks ahead, for analysis only; null for the latest 21 days.
+      - name: dgs10
+        description: 10-year Treasury yield (DGS10), percent
+      - name: dgs2
+        description: 2-year Treasury yield (DGS2), percent
+      - name: t10y2y
+        description: 10Y minus 2Y Treasury spread (T10Y2Y), percentage points
+      - name: curve_inverted
+        description: t10y2y below zero, historically a recession warning
+      - name: fedfunds
+        description: Effective federal funds rate (FEDFUNDS, monthly average), percent
+      - name: fedfunds_chg_3m
+        description: Change in fedfunds over 3 months, percentage points
+      - name: fed_regime
+        description: hiking (3-month change above +0.25pp), cutting (below -0.25pp), otherwise holding
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [hiking, cutting, holding]
+      - name: cpi_yoy_pct
+        description: CPI year-over-year change (headline inflation), percent
+      - name: cpi_3m_ann_pct
+        description: CPI change over the last 3 months, annualized, percent
+      - name: inflation_trend
+        description: rising when the 3-month annualized rate is more than 0.5pp above the yearly rate, falling when more than 0.5pp below, otherwise stable
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [rising, falling, stable]
+      - name: unrate
+        description: Unemployment rate (UNRATE), percent
+      - name: unrate_chg_3m
+        description: Change in unrate over 3 months, percentage points
+      - name: umcsent
+        description: University of Michigan consumer sentiment index (UMCSENT)
+      - name: gdp_yoy_pct
+        description: Nominal GDP year-over-year change, percent
+
+  - name: mart_sector_relative_strength
+    description: >
+      Sector (XLF, XLE, XLK, XLU), small-cap (IWM) and bond (TLT) ETFs against
+      SPY over ~1, 3 and 6 months (21, 63, 126 trading days). rel_* is the
+      excess return over SPY as a fraction; rank_* is 1 for the strongest
+      symbol that day.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [symbol, obs_date]
+    columns:
+      - name: obs_date
+        description: Trading date
+        data_tests: [not_null]
+      - name: symbol
+        description: Ticker symbol
+        data_tests: [not_null]
+      - name: return_1m
+        description: Return over the last 21 trading days, as a fraction
+      - name: return_3m
+        description: Return over the last 63 trading days, as a fraction
+      - name: return_6m
+        description: Return over the last 126 trading days, as a fraction
+      - name: spy_return_1m
+        description: SPY's return over the same 21 days
+      - name: spy_return_3m
+        description: SPY's return over the same 63 days
+      - name: spy_return_6m
+        description: SPY's return over the same 126 days
+      - name: rel_1m
+        description: return_1m minus spy_return_1m
+      - name: rel_3m
+        description: return_3m minus spy_return_3m
+      - name: rel_6m
+        description: return_6m minus spy_return_6m
+      - name: rank_1m
+        description: Rank by rel_1m that day, 1 = strongest
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+                max_value: 6
+      - name: rank_3m
+        description: Rank by rel_3m that day, 1 = strongest
+      - name: rank_6m
+        description: Rank by rel_6m that day, 1 = strongest
+
+  - name: mart_intraday_bars
+    description: >
+      1- and 5-minute OHLCV bars with VWAP, built from the Finnhub trades in
+      stg_trades. Incremental; each run rebuilds bars from the latest bar_date
+      onward.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [symbol, bar_minutes, bar_start]
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "low <= open and low <= close and high >= open and high >= close"
+    columns:
+      - name: symbol
+        description: Ticker symbol
+        data_tests: [not_null]
+      - name: bar_minutes
+        description: Bar length in minutes, 1 or 5
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 5]
+                quote: false
+      - name: bar_start
+        description: Start of the bar (UTC instant)
+        data_tests: [not_null]
+      - name: bar_date
+        description: Trading date of the bar in US Eastern time
+      - name: open
+        description: Price of the first trade in the bar
+      - name: high
+        description: Highest trade price in the bar
+      - name: low
+        description: Lowest trade price in the bar
+      - name: close
+        description: Price of the last trade in the bar
+      - name: volume
+        description: Shares traded in the bar
+      - name: vwap
+        description: Volume-weighted average price, sum(price x volume) / sum(volume)
+      - name: trade_count
+        description: Number of trades in the bar
+      - name: is_regular_session
+        description: Every trade in the bar was between 9:30 and 16:00 Eastern

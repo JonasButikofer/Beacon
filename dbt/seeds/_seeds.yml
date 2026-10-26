@@ -3,7 +3,7 @@ version: 2
 # these are normally tables that are reference and are rarely updated.
 seeds:
   - name: dim_indicator
-    description: Reference dimension explaining each macro indicator ingested from FRED. Joins to fact/mart tables on series_id.
+    description: Reference dimension explaining each macro indicator ingested from FRED. Joins to stg_macro and int_macro_daily on series_id.
     config:
       column_types:
         series_id: string
@@ -15,7 +15,7 @@ seeds:
         why_it_matters: string
     columns:
       - name: series_id
-        description: FRED series ID — joins to mart_macro_market_signals.series_id
+        description: FRED series ID — joins to stg_macro.series_id and int_macro_daily.series_id
         data_tests: [not_null, unique]
       - name: indicator_name
         description: Human-readable name

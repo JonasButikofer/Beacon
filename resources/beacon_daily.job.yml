@@ -1,9 +1,12 @@
-# Daily orchestration: ingest, then data quality, as one DAG.
+# Daily orchestration: ingest, then dbt (silver + gold), then data quality, as one DAG.
 #
-# beacon_quality starts when beacon_batch finishes instead of at a fixed time,
-# so a slow or retried ingest can't race the checks. run_if: ALL_DONE means the
-# checks still run when ingest fails; that's the case they most need to catch
-# (the job_runs:beacon_batch check sees the failed run).
+# Each step starts when the previous one finishes instead of at a fixed time,
+# so a slow or retried step can't race the next. run_if: ALL_DONE everywhere:
+# - dbt still builds when one ingest task fails. Bronze is MERGE/overwrite, so
+#   it's never half-written; the other sources stay current and the stale one
+#   is caught by the checks.
+# - the checks still run when ingest or dbt fails; that's the case they most
+#   need to catch (the job_runs:beacon_batch check sees the failed run).
 #
 # The child jobs have no schedules of their own; run them by hand with
 # `databricks bundle run beacon_batch` / `beacon_quality` as before.
@@ -19,14 +22,40 @@ resources:
         quartz_cron_expression: "0 0 6 * * ?" # daily 6:00 AM
         timezone_id: ${var.timezone}
 
+      environments:
+        - environment_key: dbt
+          spec:
+            environment_version: "4"
+            dependencies:
+              - dbt-databricks>=1.10.0,<2.0.0
+
       tasks:
         - task_key: ingest
           run_job_task:
             job_id: ${resources.jobs.beacon_batch.id}
 
-        - task_key: data_quality
+        # Databricks generates the dbt profile from warehouse_id/catalog/schema,
+        # so dbt/profiles.yml (local dev only) isn't used here. `dbt build`
+        # runs seeds, the snapshot, models and tests in DAG order. Source
+        # freshness runs last so a stale source reports without blocking the build.
+        - task_key: dbt_build
           depends_on:
             - task_key: ingest
+          run_if: ALL_DONE
+          environment_key: dbt
+          dbt_task:
+            project_directory: ../dbt
+            warehouse_id: ${var.warehouse_id}
+            catalog: beacon
+            schema: silver
+            commands:
+              - dbt deps
+              - dbt build
+              - dbt source freshness
+
+        - task_key: data_quality
+          depends_on:
+            - task_key: dbt_build
           run_if: ALL_DONE
           run_job_task:
             job_id: ${resources.jobs.beacon_quality.id}

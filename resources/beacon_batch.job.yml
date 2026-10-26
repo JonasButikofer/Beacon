@@ -45,19 +45,3 @@ resources:
           min_retry_interval_millis: 300000
           spark_python_task:
             python_file: ../ingest/batch_tiingo_tickers.py
-
-        # M3/M4: uncomment once dbt/ has a project. Set warehouse_id to your SQL
-        # warehouse (SQL Warehouses -> your warehouse -> Overview -> ID).
-        # - task_key: dbt_build
-        #   depends_on:
-        #     - task_key: ingest_fred
-        #     - task_key: ingest_tiingo_eod
-        #     - task_key: ingest_tiingo_tickers
-        #   environment_key: dbt
-        #   dbt_task:
-        #     project_directory: ../dbt
-        #     warehouse_id: <WAREHOUSE_ID>
-        #     catalog: beacon
-        #     commands:
-        #       - dbt deps
-        #       - dbt build

@@ -1,5 +1,6 @@
-# Minimal dbt project — just enough to own the dim_indicator seed for now.
-# Models (Silver staging, Gold marts) and profiles.yml come with M3.
+# Beacon transformations: bronze (ingest jobs) -> silver (staging, intermediate,
+# snapshots) -> gold (seeds, marts). Runs locally with dbt Fusion and in the
+# beacon_daily job with dbt-core, so stick to syntax both accept.
 name: beacon
 version: "1.0.0"
 profile: beacon
@@ -8,6 +9,27 @@ model-paths: ["models"]
 seed-paths: ["seeds"]
 macro-paths: ["macros"]
 test-paths: ["tests"]
+snapshot-paths: ["snapshots"]
+
+models:
+  beacon:
+    +materialized: table
+    +persist_docs:
+      relation: true
+      columns: true
+    staging:
+      +schema: silver
+    intermediate:
+      +schema: silver
+    marts:
+      +schema: gold
+
+snapshots:
+  beacon:
+    +schema: silver
+    +persist_docs:
+      relation: true
+      columns: true
 
 seeds:
   beacon:
