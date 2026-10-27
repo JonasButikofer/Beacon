@@ -38,4 +38,4 @@ models:
       - name: chg_12m
         description: value minus value_12m_ago, in the series' units
       - name: pct_chg_12m
-        description: Year-over-year % change in percent (3.1 = +3.1%). For CPIAUCSL this is the headline inflation rate.
+        description: Year-over-year % change in percent (3.1 = +3.1%). For CPIAUCSL this is the headline inflation rate. Null when the value 12 months earlier was 0.

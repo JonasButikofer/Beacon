@@ -101,9 +101,9 @@ flowchart TD
 See the setup steps in the PR or conversation that added this folder. In short:
 
 ```bash
-databricks secrets put-secret beacon anthropic_api_key --profile DEFAULT
-databricks bundle deploy -t dev --profile DEFAULT
-databricks bundle run beacon_quality -t dev --profile DEFAULT
+databricks secrets put-secret beacon anthropic_api_key
+databricks bundle deploy -t dev
+databricks bundle run beacon_quality -t dev
 ```
 
 ## Reading results

@@ -68,7 +68,8 @@ select
     c.value_12m_ago,
     c.value - c.value_3m_ago as chg_3m,
     c.value - c.value_12m_ago as chg_12m,
-    (c.value / c.value_12m_ago - 1) * 100 as pct_chg_12m
+    -- try_divide: rates and spreads (FEDFUNDS, T10Y2Y) have sat at exactly 0.
+    (try_divide(c.value, c.value_12m_ago) - 1) * 100 as pct_chg_12m
 from as_of as a
 inner join obs_changes as c
     on c.series_id = a.series_id
