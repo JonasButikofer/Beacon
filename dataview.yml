@@ -1,0 +1,28 @@
+# How lavender. dataview reads this repo and lays out the warehouse map.
+# Reference: lavender/dataview/15-config-reference.md
+
+default_catalog: beacon
+default_schema: silver
+dbt: { project_dir: dbt/, catalog: beacon, target: prod }
+
+# Only code that builds tables. sql/ and agent/ops_tables.sql are one-off setup DDL
+# (CREATE CATALOG / SCHEMA / VOLUME), not transformations.
+include: ["dbt/**", "ingest/**", "resources/**", "databricks.yml"]
+
+medallion:
+  # Beacon's layers follow its schemas: staging, intermediate and snapshots are silver;
+  # seeds and marts are gold. (DataView's defaults treat dbt staging / stg_ as bronze.)
+  aliases: { staging: silver, intermediate: silver, marts: gold }
+  prefixes:
+    bronze: ["raw_"]
+    silver: ["stg_", "int_", "snap_"]
+    gold: ["dim_", "mart_", "fct_"]
+
+drift:
+  # The data quality agent's tables are created by agent/run_checks.py, not dbt.
+  ignore: ["beacon.ops.*"]
+
+lineage_overrides:
+  - from: "ext:/Volumes/beacon/bronze/quote_landing/"
+    to: beacon.bronze.quotes_raw
+    note: Auto Loader in ingest/stream_finnhub_autoloader.py reads the landing volume (LANDING_PATH)
