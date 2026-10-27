@@ -20,6 +20,12 @@ variables:
     description: SQL warehouse the dbt task runs on.
     lookup:
       warehouse: Serverless Starter Warehouse
+  intraday_schedule:
+    description: >-
+      PAUSED or UNPAUSED for beacon_stream and beacon_quotes_loader. Off by
+      default; turn on with --var intraday_schedule=UNPAUSED on deploy. Any
+      deploy without it turns them back off.
+    default: PAUSED
 
 targets:
   # `mode: development` prefixes job names with "[dev <user>]" and PAUSES every

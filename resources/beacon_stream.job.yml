@@ -13,11 +13,18 @@ resources:
       schedule:
         quartz_cron_expression: "0 30 9 ? * MON-FRI" # weekdays 9:30 AM
         timezone_id: ${var.timezone}
-        # Paused: this and beacon_quotes_loader used ~75% of Free Edition's
-        # compute quota and got job compute blocked. Run by hand with
-        # `databricks bundle run beacon_stream -t prod`. Re-enabling also means
-        # setting QUOTES_CHECK_ENABLED = True in agent/config.py.
-        pause_status: PAUSED
+        # Off by default: this and beacon_quotes_loader used ~75% of Free
+        # Edition's compute quota and got job compute blocked. Turn on with
+        # `databricks bundle deploy -t prod --var intraday_schedule=UNPAUSED`.
+        # Leaving it on also means setting QUOTES_CHECK_ENABLED = True in
+        # agent/config.py.
+        pause_status: ${var.intraday_schedule}
+
+      # Override for short manual test runs:
+      #   databricks bundle run beacon_stream -t prod --params max_runtime_seconds=900
+      parameters:
+        - name: max_runtime_seconds
+          default: "23400" # 9:30 AM + 6.5h = 4:00 PM ET
 
       environments:
         - environment_key: finnhub
@@ -33,7 +40,7 @@ resources:
             python_file: ../ingest/stream_finnhub_consumer.py
             parameters:
               - "--max-runtime-seconds"
-              - "23400"
+              - "{{job.parameters.max_runtime_seconds}}"
 
         # Final sweep so the last files of the day reach Bronze, even if the
         # consumer failed partway through.
