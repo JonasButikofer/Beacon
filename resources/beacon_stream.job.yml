@@ -13,6 +13,11 @@ resources:
       schedule:
         quartz_cron_expression: "0 30 9 ? * MON-FRI" # weekdays 9:30 AM
         timezone_id: ${var.timezone}
+        # Paused: this and beacon_quotes_loader used ~75% of Free Edition's
+        # compute quota and got job compute blocked. Run by hand with
+        # `databricks bundle run beacon_stream -t prod`. Re-enabling also means
+        # setting QUOTES_CHECK_ENABLED = True in agent/config.py.
+        pause_status: PAUSED
 
       environments:
         - environment_key: finnhub

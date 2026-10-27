@@ -41,7 +41,8 @@ NEWS_MAX_LAG_HOURS = 72
 # quotes_raw: minimum trades expected on the last trading session.
 # Set QUOTES_CHECK_ENABLED = False while beacon_stream isn't running daily
 # (e.g. schedules paused in the dev target), or this fails every day.
-QUOTES_CHECK_ENABLED = True
+# Off while beacon_stream is paused in prod for the Free Edition quota.
+QUOTES_CHECK_ENABLED = False
 QUOTES_MIN_ROWS = 1000
 
 # tickers_universe: full overwrite weekly, ~100k rows.

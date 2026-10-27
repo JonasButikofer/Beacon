@@ -10,6 +10,8 @@ resources:
         # overlap finnhub_autoloader_final on the same checkpoint.
         quartz_cron_expression: "0 0/30 10-15 ? * MON-FRI"
         timezone_id: ${var.timezone}
+        # Paused along with beacon_stream (Free Edition quota); see that file.
+        pause_status: PAUSED
 
       environments:
         - environment_key: default

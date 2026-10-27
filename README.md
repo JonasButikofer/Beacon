@@ -50,7 +50,7 @@ The descriptions for these series are kept in `beacon.gold.dim_indicator`, loade
 
 ## Transformations (dbt)
 
-The dbt project in [dbt/](dbt/) builds Silver and Gold from Bronze. It runs every morning as the `dbt_build` task in `beacon_daily` (ingest → dbt → data quality).
+The dbt project in [dbt/](dbt/) builds Silver and Gold from Bronze. It runs every weekday morning as the `dbt_build` task in `beacon_daily` (ingest → dbt → data quality).
 
 | Layer | Model | Grain | What it is |
 |---|---|---|---|

@@ -19,7 +19,9 @@ resources:
       name: beacon_daily
       max_concurrent_runs: 1
       schedule:
-        quartz_cron_expression: "0 0 6 * * ?" # daily 6:00 AM
+        # Weekdays 6:00 AM. Monday's run picks up Friday's close; the EOD and
+        # FRED ingests are incremental MERGEs, so nothing is skipped.
+        quartz_cron_expression: "0 0 6 ? * MON-FRI"
         timezone_id: ${var.timezone}
 
       environments:
