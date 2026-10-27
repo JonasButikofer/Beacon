@@ -87,7 +87,7 @@ flowchart TD
 | `markets_duplicates` | markets_raw | error | Any `(symbol, obs_date)` appears twice |
 | `markets_ohlc_sanity` | markets_raw | error | In the last 30 days: high < low, close or open outside the range, price <= 0 |
 | `markets_adj_jump` | markets_raw | warn | `adj_close` moves more than 15% in a day with no split |
-| `macro_freshness` | macro_raw | error | A series is older than its limit (daily 7d, monthly 100d, GDP 200d) |
+| `macro_freshness` | macro_raw | error | A series is older than its limit (daily 7d, monthly 100d, GDP 230d) |
 | `macro_integrity` | macro_raw | error | Duplicate keys or null values |
 | `news_freshness` | news_raw | error | Newest article is more than 72h old (off: `NEWS_CHECK_ENABLED = False`) |
 | `news_duplicates` | news_raw | error | Duplicate `article_id` (off: `NEWS_CHECK_ENABLED = False`) |

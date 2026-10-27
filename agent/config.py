@@ -21,7 +21,9 @@ MARKETS_SANITY_WINDOW_DAYS = 30
 # macro_raw: max calendar days between today and each series' latest obs_date.
 # FRED dates monthly observations to the 1st of the month and publishes them
 # weeks later, so "fresh" monthly data is still 45-75 days old. GDP is dated to
-# the quarter start and first printed ~30 days after the quarter ends.
+# the quarter start and first printed ~30 days after the quarter ends (~120 days
+# after its obs_date), then stays the latest until the next quarter's print
+# (~211 days). 230 adds ~3 weeks for a late BEA release.
 FRED_MAX_LAG_DAYS = {
     "DGS10": 7,
     "DGS2": 7,
@@ -30,7 +32,7 @@ FRED_MAX_LAG_DAYS = {
     "UNRATE": 100,
     "FEDFUNDS": 100,
     "UMCSENT": 100,
-    "GDP": 200,
+    "GDP": 230,
 }
 
 # news_raw: hours since the newest published article. Weekends are slow.
