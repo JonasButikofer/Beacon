@@ -21,7 +21,9 @@ with src as (
         _ingested_at
     from {{ source('bronze', 'quotes_raw') }}
     {% if is_incremental() %}
-    where _ingested_at > (select max(_ingested_at) from {{ this }})
+    -- coalesce: if this table was first built while quotes_raw was empty,
+    -- max() is NULL and `> NULL` would skip every row forever.
+    where _ingested_at > (select coalesce(max(_ingested_at), timestamp'1900-01-01') from {{ this }})
     {% endif %}
 ),
 

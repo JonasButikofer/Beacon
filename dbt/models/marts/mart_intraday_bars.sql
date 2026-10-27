@@ -11,7 +11,8 @@ with trades as (
     select *
     from {{ ref('stg_trades') }}
     {% if is_incremental() %}
-    where trade_date >= (select max(bar_date) from {{ this }})
+    -- coalesce: an empty table's max() is NULL, which would match nothing.
+    where trade_date >= (select coalesce(max(bar_date), date'1900-01-01') from {{ this }})
     {% endif %}
 ),
 
