@@ -12,7 +12,8 @@
 # `databricks bundle run beacon_batch` / `beacon_quality` as before.
 #
 # Free Edition's 5-task cap: each run_job_task holds a slot while its child
-# runs, so the peak is 1 + 3 ingest tasks = 4.
+# runs, so the peak is 1 + 4 ingest tasks = 5. Adding a fifth ingest task
+# needs a paid workspace (beacon-paid) or chaining two of them.
 resources:
   jobs:
     beacon_daily:

@@ -30,6 +30,19 @@ resources:
           spark_python_task:
             python_file: ../ingest/batch_tiingo_eod.py
 
+        # Companies in the sector ETFs (holdings from beacon_universe_weekly).
+        # Capped at COMPANY_CALLS_PER_RUN Tiingo calls so it fits the free plan's
+        # 50/hour next to the other two Tiingo tasks; a capped run still succeeds.
+        - task_key: ingest_tiingo_company_eod
+          environment_key: default
+          max_retries: 2
+          min_retry_interval_millis: 300000
+          spark_python_task:
+            python_file: ../ingest/batch_tiingo_eod.py
+            parameters:
+              - "--symbols"
+              - "companies"
+
         # Disabled: the free Tiingo plan returns 403 on /tiingo/news. To re-enable,
         # uncomment this task and set NEWS_CHECK_ENABLED = True in agent/config.py.
         # - task_key: ingest_tiingo_news

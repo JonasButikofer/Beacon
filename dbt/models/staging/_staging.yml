@@ -54,6 +54,115 @@ models:
       - name: _ingested_at
         description: When the bronze row was loaded
 
+  - name: stg_company_prices
+    description: Daily OHLCV bars for the companies in the sector ETFs, one row per (symbol, obs_date). Same columns and rules as stg_markets.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [symbol, obs_date]
+    columns:
+      - name: symbol
+        description: Ticker symbol in Tiingo's format, e.g. AAPL or BRK-B
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_company')
+                field: symbol
+      - name: obs_date
+        description: Trading date
+        data_tests: [not_null]
+      - name: open
+        description: Raw open price
+      - name: high
+        description: Raw high price
+      - name: low
+        description: Raw low price
+      - name: close
+        description: Raw close price
+      - name: volume
+        description: Raw share volume
+      - name: adj_open
+        description: Split/dividend-adjusted open
+      - name: adj_high
+        description: Split/dividend-adjusted high
+      - name: adj_low
+        description: Split/dividend-adjusted low
+      - name: adj_close
+        description: Split/dividend-adjusted close. Use this for returns.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: false
+      - name: adj_volume
+        description: Split/dividend-adjusted volume
+      - name: div_cash
+        description: Cash dividend paid on this date (0 if none)
+      - name: split_factor
+        description: Split ratio applied on this date (1.0 = no split)
+      - name: daily_return
+        description: adj_close over the previous trading day's adj_close, minus 1, as a fraction (0.01 = +1%). Null on a symbol's first day.
+      - name: _ingested_at
+        description: When the bronze row was loaded
+
+  - name: stg_etf_holdings
+    description: Sector ETF holdings from State Street, one row per line of each file per as_of_date. Includes cash, money market and index-future lines (is_equity = false), so weights sum to ~100% per snapshot.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [etf_symbol, as_of_date, position]
+    columns:
+      - name: etf_symbol
+        description: The ETF that holds the line, e.g. XLK
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [XLK, XLF, XLE, XLU]
+      - name: as_of_date
+        description: Date the holdings are as of, from the file header
+        data_tests: [not_null]
+      - name: position
+        description: Line number in the file, 1 = first holding (files list the largest weight first)
+        data_tests: [not_null]
+      - name: holding_name
+        description: Security name as State Street writes it, e.g. APPLE INC
+      - name: ticker
+        description: Ticker as State Street writes it (BRK.B); null for cash lines
+      - name: symbol
+        description: ticker in Tiingo's format (BRK-B), the join key to prices; null for cash lines
+        data_tests:
+          - not_null:
+              config:
+                where: is_equity
+      - name: identifier
+        description: CUSIP
+      - name: sedol
+        description: SEDOL
+      - name: weight
+        description: Share of the fund, as a fraction (0.15 = 15%). Futures lines can be slightly negative.
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+              config:
+                where: is_equity
+      - name: shares_held
+        description: Shares the fund holds
+      - name: local_currency
+        description: Currency of the holding
+      - name: is_equity
+        description: The symbol is a stock in the Tiingo universe, i.e. a company Beacon prices. False for cash, money market and futures lines.
+      - name: exchange
+        description: Listing exchange from the Tiingo universe
+      - name: price_currency
+        description: Currency Tiingo quotes the stock in
+      - name: _ingested_at
+        description: When the bronze row was loaded
+
   - name: stg_macro
     description: FRED observations, one row per (series_id, obs_date), with the indicator's name, category, frequency and units from dim_indicator.
     data_tests:

@@ -1,6 +1,31 @@
 version: 2
 
 models:
+  - name: int_symbol_returns
+    description: >
+      Trailing returns over ~1, 3 and 6 months (21, 63, 126 trading days) for
+      every priced symbol, ETFs and companies, one row per (symbol, obs_date).
+      Fractions: 0.05 = +5%. Null until the symbol has enough history.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [symbol, obs_date]
+    columns:
+      - name: symbol
+        description: Ticker symbol (ETF or company)
+        data_tests: [not_null]
+      - name: obs_date
+        description: Trading date
+        data_tests: [not_null]
+      - name: adj_close
+        description: Split/dividend-adjusted close
+      - name: return_1m
+        description: Return over the last 21 trading days, as a fraction
+      - name: return_3m
+        description: Return over the last 63 trading days, as a fraction
+      - name: return_6m
+        description: Return over the last 126 trading days, as a fraction
+
   - name: int_macro_daily
     description: >
       Every FRED series forward-filled to a daily calendar, one row per
