@@ -49,3 +49,26 @@ sources:
           freshness:
             warn_after: {count: 9, period: day}
             error_after: {count: 15, period: day}
+
+      - name: company_prices_raw
+        description: >
+          Daily OHLCV bars from Tiingo for the stocks in the sector ETFs' latest
+          holdings. Same columns as markets_raw. Incremental MERGE on (symbol,
+          obs_date); on the free plan each run refreshes ~30 companies in
+          rotation, so freshness is measured on the newest bar in the table.
+        config:
+          loaded_at_field: cast(obs_date as timestamp)
+          freshness:
+            warn_after: {count: 4, period: day}
+            error_after: {count: 7, period: day}
+
+      - name: etf_holdings_raw
+        description: >
+          State Street holdings files for XLK, XLF, XLE and XLU, one row per line
+          per as_of_date (cash and futures lines included). Weekly; a re-run for
+          the same as_of_date replaces that snapshot.
+        config:
+          loaded_at_field: _ingested_at
+          freshness:
+            warn_after: {count: 9, period: day}
+            error_after: {count: 15, period: day}

@@ -9,6 +9,9 @@
 - **Tiingo news `startDate`:** API takes `YYYY-MM-DD` only, so the watermark is truncated to a date; same-day repeats are deduped by the MERGE on `article_id`.
 - **`dim_indicator` moved to a dbt seed** (`dbt/seeds/dim_indicator.csv`) so dbt owns everything in `beacon.gold`. Replaced the hand-run `sql/FRED_data_description_Gold.sql`. Custom `generate_schema_name` macro so `+schema: gold` lands in `gold`, not `silver_gold`.
 
+- **Company prices in rotation:** the drill-down needs ~210 companies (XLK/XLF/XLE/XLU holdings) but the free Tiingo plan allows 50 requests/hour. Rather than an hourly job or a long sleeping one, the daily batch spends a fixed budget (`COMPANY_CALLS_PER_RUN = 30`) on the never-loaded and most out-of-date companies first; each pull starts at that symbol's watermark, so history has no gaps, only lag (~7 trading days per company). `mart_drilldown_relative_strength` exposes `children_reporting` vs `children_priced` so ranks are read from a fully reported date. A paid plan → set the budget to 0. Company bars go to their own bronze table (`company_prices_raw`) so the ETF checks in `agent/` keep their meaning.
+- **Holdings from State Street, not an API:** free daily .xlsx per SPDR fund, weekly snapshot, appended by `as_of_date`. Tickers mapped to Tiingo's format (`BRK.B` → `BRK-B`); cash/futures lines kept in bronze but excluded via the Tiingo universe (`asset_type = 'Stock'`).
+
 ## Also worth writing up
 
 - Finnhub consumer runs market hours only (Free Edition slot limits) instead of a continuous trigger.

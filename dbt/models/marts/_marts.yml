@@ -270,3 +270,185 @@ models:
         description: Number of trades in the bar
       - name: is_regular_session
         description: Every trade in the bar was between 9:30 and 16:00 Eastern
+
+  - name: dim_company
+    description: >
+      One row per company that has appeared in a sector ETF's holdings (XLK,
+      XLF, XLE, XLU), labelled from the latest snapshot that held it. Only
+      current holdings get new prices.
+    columns:
+      - name: symbol
+        description: Ticker symbol in Tiingo's format, e.g. AAPL or BRK-B
+        data_tests: [not_null, unique]
+      - name: name
+        description: Company name from the holdings file, e.g. Apple Inc
+      - name: sector_etf
+        description: The sector ETF that holds it, e.g. XLK
+        data_tests: [not_null]
+      - name: sector
+        description: That ETF's segment from dim_symbol, e.g. Technology
+      - name: exchange
+        description: Listing exchange from the Tiingo universe
+      - name: price_currency
+        description: Currency Tiingo quotes the stock in
+      - name: latest_weight
+        description: Weight in the ETF on last_held_date, as a fraction (0.15 = 15%)
+      - name: first_held_date
+        description: Earliest holdings snapshot that includes the company. Snapshots start when the holdings ingest started, not when the ETF first bought it.
+      - name: last_held_date
+        description: Latest holdings snapshot that includes the company
+      - name: is_current_holding
+        description: The company is in its ETF's latest snapshot
+      - name: first_price_date
+        description: First trading date in stg_company_prices (null until its first price pull)
+      - name: last_price_date
+        description: Latest trading date in stg_company_prices
+
+  - name: dim_symbol_hierarchy
+    description: >
+      Parent -> child edges for drilling down from the market to one company.
+      Level 1 is SPY -> the sector, small-cap and bond ETFs; level 2 is a
+      sector ETF -> the companies in its latest holdings snapshot.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [parent_symbol, child_symbol]
+    columns:
+      - name: parent_symbol
+        description: SPY, or a sector ETF
+        data_tests: [not_null]
+      - name: child_symbol
+        description: A sector/size/bond ETF (level 1) or a company (level 2)
+        data_tests: [not_null]
+      - name: level
+        description: 1 = child of SPY, 2 = company in a sector ETF
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2]
+                quote: false
+      - name: weight
+        description: The child's weight in the parent as a fraction; null at level 1 (sector ETFs aren't SPY holdings)
+      - name: child_name
+        description: Display label, the segment for ETFs (Technology) and the company name for stocks (Apple Inc)
+      - name: has_children
+        description: The child is itself a parent, so the dashboard can drill into it; false for companies and for IWM/TLT
+
+  - name: mart_company_daily
+    description: >
+      One row per company per trading day with the same indicators as
+      mart_market_daily (both use macros/daily_price_health.sql): return,
+      50/200-day averages and crosses, 20-day volatility and drawdown. All
+      fractions. On the free Tiingo plan the newest days fill in over a week
+      of runs (companies refresh in rotation).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [symbol, obs_date]
+    columns:
+      - name: symbol
+        description: Ticker symbol
+        data_tests: [not_null]
+      - name: obs_date
+        description: Trading date
+        data_tests: [not_null]
+      - name: close
+        description: Raw close price, as quoted that day
+      - name: adj_close
+        description: Split/dividend-adjusted close; every indicator below is computed on this
+      - name: volume
+        description: Raw share volume
+      - name: daily_return
+        description: Change in adj_close from the previous trading day, as a fraction
+      - name: sma_50
+        description: Average adj_close over the last 50 trading days
+      - name: sma_200
+        description: Average adj_close over the last 200 trading days
+      - name: above_sma_200
+        description: adj_close is above its 200-day average
+      - name: cross_signal
+        description: golden_cross on the day sma_50 crosses above sma_200, death_cross on the day it crosses below, otherwise null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [golden_cross, death_cross]
+      - name: vol_20d_ann
+        description: Standard deviation of the last 20 daily returns, annualized (x sqrt 252)
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: running_peak
+        description: Highest adj_close since the company's first bar in Beacon (2015 at the earliest)
+      - name: drawdown
+        description: How far adj_close is below running_peak, as a fraction (-0.12 = 12% below)
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: -1
+                max_value: 0
+
+  - name: mart_drilldown_relative_strength
+    description: >
+      Every child in dim_symbol_hierarchy against its parent over ~1, 3 and 6
+      months (21, 63, 126 trading days): sectors vs SPY, companies vs their
+      sector ETF. rel_* is the excess return over the parent as a fraction;
+      rank_* is 1 for the strongest child of that parent that day. Level 2
+      applies today's holdings to past dates (survivorship bias), so use it for
+      recent leadership, not backtests.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [parent_symbol, child_symbol, obs_date]
+    columns:
+      - name: parent_symbol
+        description: SPY, or a sector ETF
+        data_tests: [not_null]
+      - name: child_symbol
+        description: The ETF or company being compared to its parent
+        data_tests: [not_null]
+      - name: obs_date
+        description: Trading date
+        data_tests: [not_null]
+      - name: level
+        description: 1 = sector vs SPY, 2 = company vs its sector ETF
+      - name: weight
+        description: The child's weight in the parent as a fraction; null at level 1
+      - name: has_children
+        description: The child can be drilled into
+      - name: return_1m
+        description: Child's return over the last 21 trading days
+      - name: return_3m
+        description: Child's return over the last 63 trading days
+      - name: return_6m
+        description: Child's return over the last 126 trading days
+      - name: parent_return_1m
+        description: Parent's return over the same 21 days
+      - name: parent_return_3m
+        description: Parent's return over the same 63 days
+      - name: parent_return_6m
+        description: Parent's return over the same 126 days
+      - name: rel_1m
+        description: return_1m minus parent_return_1m
+      - name: rel_3m
+        description: return_3m minus parent_return_3m
+      - name: rel_6m
+        description: return_6m minus parent_return_6m
+      - name: above_sma_200
+        description: The child's adj_close is above its 200-day average
+      - name: drawdown
+        description: The child's drawdown from its running peak, as a fraction
+      - name: children_reporting
+        description: Children of this parent with a row on this date. Below children_priced on the newest dates while companies refresh in rotation.
+      - name: children_priced
+        description: Children of this parent with any price history. Ranks cover every child only on dates where children_reporting equals this.
+      - name: rank_1m
+        description: Rank by rel_1m among this parent's children that day, 1 = strongest
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+      - name: rank_3m
+        description: Rank by rel_3m among this parent's children that day, 1 = strongest
+      - name: rank_6m
+        description: Rank by rel_6m among this parent's children that day, 1 = strongest

@@ -1,7 +1,9 @@
 resources:
   jobs:
     # The ~100k-row ticker universe changes slowly and is a full overwrite, so
-    # it refreshes weekly instead of with the daily batch.
+    # it refreshes weekly instead of with the daily batch. Sector ETF holdings
+    # change slowly too and ride along; beacon_batch's company price task reads
+    # both tables. Neither task calls Tiingo's metered API.
     beacon_universe_weekly:
       name: beacon_universe_weekly
       max_concurrent_runs: 1
@@ -15,6 +17,7 @@ resources:
             environment_version: "4"
             dependencies:
               - requests
+              - openpyxl
 
       tasks:
         - task_key: ingest_tiingo_universe
@@ -23,3 +26,11 @@ resources:
           min_retry_interval_millis: 300000
           spark_python_task:
             python_file: ../ingest/batch_tiingo_universe.py
+
+        # State Street holdings files for XLK, XLF, XLE, XLU (free, no key).
+        - task_key: ingest_etf_holdings
+          environment_key: default
+          max_retries: 2
+          min_retry_interval_millis: 300000
+          spark_python_task:
+            python_file: ../ingest/batch_etf_holdings.py
